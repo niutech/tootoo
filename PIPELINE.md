@@ -189,6 +189,7 @@ g:\My Drive\2026-theo-github\theo-armour-sandbox\index.html
 g:\My Drive\2026-theo-github\theo-armour-wikitheo\index.html
 j:\My Drive\tech\index.html
 ```
+qUE#@kZ4Um3tuhfI*h7^4JXQ8E8UT8Zr
 
 **`heritage-happenings-documents`** — added 2026-08-09 as the 14th target. TooToo
 installs at the repo root, replacing a stub `index.html` that redirected to a
