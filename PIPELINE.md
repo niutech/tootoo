@@ -136,7 +136,7 @@ site rebuilds. **This is the only command that performs git pushes.**
   wrote to `README.md` is the commit message, shared across all repos in the run.
 - Explicit "yes, publish N repos" confirmation listing the affected repos.
 
-**Eligibility**: `publish` acts only on targets that are git repos. All 13
+**Eligibility**: `publish` acts only on targets that are git repos. All 14
 current targets are git repos. If a non-repo target is ever added it is sync-only
 and auto-skipped here — no special-casing needed.
 
@@ -171,10 +171,11 @@ Discovered 2026-06-21 by scanning for TooToo builds (`TOOTOO_CONFIG` /
 `appName: 'TooToo'`) that are **not** the canonical repo. All have their own
 `tootoo.config.js`.
 
-All 13 are git repos, so every one is both a `sync` and a `publish` target.
+All 14 are git repos, so every one is both a `sync` and a `publish` target.
 
 ```text
 g:\My Drive\2026-theo-github\heritage-happenings.github.io\index.html
+G:\My Drive\2026-theo-github\heritage-happenings-documents\index.html
 g:\My Drive\2026-theo-github\pushme-pullyou-assets\index.html
 g:\My Drive\2026-theo-github\pushme-pullyou-github\index.html
 g:\My Drive\2026-theo-github\theo-armour-2025\index.html
@@ -186,8 +187,21 @@ g:\My Drive\2026-theo-github\theo-armour-pages\index.html
 g:\My Drive\2026-theo-github\theo-armour-qdata\index.html
 g:\My Drive\2026-theo-github\theo-armour-sandbox\index.html
 g:\My Drive\2026-theo-github\theo-armour-wikitheo\index.html
-i:\My Drive\tech\index.html
+j:\My Drive\tech\index.html
 ```
+
+**`heritage-happenings-documents`** — added 2026-08-09 as the 14th target. TooToo
+installs at the repo root, replacing a stub `index.html` that redirected to a
+`./tootoo/` folder which never existed (the stub is archived beside it as
+`index-redirect-<TSF>.html`). Its first `tootoo.config.js` was written during that
+sync — the one and only time a pipeline command creates one; no later command touches
+it. The repo's pre-existing `.tootoo/` folder is an older, unrelated viewer, not a
+sync target.
+
+**`tech`** — moved from `i:` to `j:\My Drive\tech` (2026-08-09). Its Google Drive
+letter can shift between machines/remounts, so a "missing" report for this target
+usually means a changed drive letter, not a deleted fork — check the other letters
+before treating it as gone.
 
 The canonical list of record is this file. When a new fork is added, add it here.
 

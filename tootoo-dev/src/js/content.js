@@ -271,9 +271,17 @@ const selectFile = async ( path, anchor = '' ) => {
   revokeAllBlobUrls();                         // free the previous file's blob URLs
 
   // Highlight the matching tree row, open its ancestor folders, scroll it in view.
-  document.querySelectorAll( '.tree-item' ).forEach( ( el ) =>
-    el.classList.toggle( 'active', el.dataset.path === path ) );
-  const activeRow = document.querySelector( '.tree-item.active' );
+  // Sidebar's cached row list (refreshed on each renderTree) saves re-querying the
+  // whole tree per navigation; standalone content pages (no sidebar.js) fall back.
+  const treeRows = ( typeof cachedTreeItems !== 'undefined' && cachedTreeItems.length )
+    ? cachedTreeItems
+    : Array.from( document.querySelectorAll( '.tree-item' ) );
+  let activeRow = null;
+  treeRows.forEach( ( el ) => {
+    const isActive = el.dataset.path === path;
+    el.classList.toggle( 'active', isActive );
+    if ( isActive ) activeRow = el;
+  } );
   if ( activeRow ) {
     let ancestor = activeRow.closest( 'details' );
     while ( ancestor ) { ancestor.open = true; ancestor = ancestor.parentElement?.closest( 'details' ); }
@@ -318,6 +326,9 @@ const selectFile = async ( path, anchor = '' ) => {
   } catch ( err ) {
     if ( err.name === 'AbortError' ) return;   // superseded by a newer selection
     lastRawText = '';
+    // Un-claim the path: leaving a failed load as "current" would make the
+    // hashchange guard in main.js swallow a retry of the same permalink.
+    state.currentFilePath = '';
     body.innerHTML = `<p style="color:red;">${ escapeHTML( err.message ) }</p>`;
   }
   // Land on the requested anchor when there is one; otherwise start at the top.

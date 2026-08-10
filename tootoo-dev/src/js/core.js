@@ -161,8 +161,10 @@ const applyHeadingFont = () => {
   }
 };
 
-/* ── per-extension Rendered/Raw preference (reference §7) ── */
-const viewPrefKey = ( ext ) => `${ CONFIG.storagePrefix || 'tootoo' }:viewPref:${ ext }`;
+/* ── per-extension Rendered/Raw preference (reference §7) ──
+   '.htm' and '.html' are the same format with the same renderer, so they share
+   one stored preference (keyed as 'html'). ── */
+const viewPrefKey = ( ext ) => `${ CONFIG.storagePrefix || 'tootoo' }:viewPref:${ ext === 'htm' ? 'html' : ext }`;
 const getPreferredView = ( ext ) => {
   try { return localStorage.getItem( viewPrefKey( ext ) ) || 'rendered'; } catch ( _ ) { return 'rendered'; }
 };
@@ -449,9 +451,21 @@ const parseHash = () => {
 };
 // Assigning location.hash (vs replaceState) creates a history entry so browser
 // back/forward navigate between files; the != guard avoids a redundant set/loop.
+// The FIRST navigation of a page load uses replaceState instead: the automatic
+// README/last-file open must not stack an entry on top of the hashless entry URL —
+// Back would land on that empty-hash state, which the router ignores, so the
+// button looked dead. Replacing keeps Back meaning "leave the page" until the
+// user has actually navigated between files.
+let hashNavigated = false;
 const updateHash = ( path, anchor = '' ) => {
   const target = '#' + encodeHash( path ) + ( anchor ? '#' + encodeHash( anchor ) : '' );
-  if ( location.hash !== target ) { try { location.hash = target; } catch ( _ ) { /* noop */ } }
+  if ( location.hash !== target ) {
+    try {
+      if ( hashNavigated ) location.hash = target;
+      else history.replaceState( null, '', target );
+    } catch ( _ ) { /* noop */ }
+  }
+  hashNavigated = true;
 };
 
 /* ── last-opened file (sessionStorage, per owner/repo/branch) ── */

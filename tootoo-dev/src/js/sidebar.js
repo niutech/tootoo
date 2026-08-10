@@ -515,10 +515,14 @@ const updateBranchControl = () => {
   btn.title = `Branch: ${ state.branch } — click to switch`;
   btn.hidden = false;
 };
-const closeBranchMenu = () => {
+const closeBranchMenu = ( restoreFocus = false ) => {
   const menu = document.getElementById( 'branchMenu' );
   if ( menu ) menu.hidden = true;
-  document.getElementById( 'btnBranch' )?.setAttribute( 'aria-expanded', 'false' );
+  const btn = document.getElementById( 'btnBranch' );
+  btn?.setAttribute( 'aria-expanded', 'false' );
+  // Keyboard close (Escape / picking an option) hands focus back to the chip —
+  // otherwise focus dies with the hidden menu. Click-outside close leaves focus alone.
+  if ( restoreFocus ) btn?.focus();
 };
 const fetchBranchList = async () => {
   if ( branchList ) return branchList;
@@ -539,6 +543,8 @@ const openBranchMenu = async () => {
     menu.innerHTML = branches.map( ( b ) =>
       `<button type="button" role="option" class="branch-option${ b === state.branch ? ' is-current' : '' }" data-branch="${ escapeHTML( b ) }">${ b === state.branch ? '✓ ' : '' }${ escapeHTML( b ) }</button>`
     ).join( '' ) + ( branches.capped ? '<div class="branch-menu-error">Showing the first 100 branches; more may exist.</div>' : '' );
+    // Focus the current branch so arrow keys / Enter work immediately on open.
+    ( menu.querySelector( '.branch-option.is-current' ) || menu.querySelector( '.branch-option' ) )?.focus();
   } catch ( _ ) {
     menu.innerHTML = '<div class="branch-menu-error">Could not load branches.</div>';
   }
@@ -547,8 +553,26 @@ const toggleBranchMenu = () => {
   const menu = document.getElementById( 'branchMenu' );
   if ( menu && !menu.hidden ) closeBranchMenu(); else openBranchMenu();
 };
+/* Keyboard support while the menu is open (listener sits on .branch-control, so it
+   covers the chip and the menu): Escape closes and returns focus to the chip;
+   ArrowDown/ArrowUp move through the options (wrapping); Home/End jump to the
+   first/last. Enter/Space need no handling — the options are real <button>s. */
+const branchMenuKeydown = ( e ) => {
+  const menu = document.getElementById( 'branchMenu' );
+  if ( !menu || menu.hidden ) return;
+  if ( e.key === 'Escape' ) { e.preventDefault(); closeBranchMenu( true ); return; }
+  const options = Array.from( menu.querySelectorAll( '.branch-option' ) );
+  if ( !options.length ) return;
+  const idx = options.indexOf( document.activeElement );
+  let next = null;
+  if ( e.key === 'ArrowDown' ) next = options[ idx + 1 ] || options[ 0 ];
+  else if ( e.key === 'ArrowUp' ) next = idx > 0 ? options[ idx - 1 ] : options[ options.length - 1 ];
+  else if ( e.key === 'Home' ) next = options[ 0 ];
+  else if ( e.key === 'End' ) next = options[ options.length - 1 ];
+  if ( next ) { e.preventDefault(); next.focus(); }
+};
 const switchBranch = async ( branch ) => {
-  closeBranchMenu();
+  closeBranchMenu( true );   // the picked option is about to be destroyed — focus the chip
   if ( !branch || branch === state.branch ) return;
   // Leaving this branch's view: clear any active filter first. renderTree rebuilds the rows
   // for the new branch but leaves the filter input, its 'filtering' class, and the clear
@@ -583,6 +607,7 @@ const initSidebar = () => {
 
   // Branch switcher chip + menu.
   document.getElementById( 'btnBranch' )?.addEventListener( 'click', toggleBranchMenu );
+  document.querySelector( '.branch-control' )?.addEventListener( 'keydown', branchMenuKeydown );
   document.getElementById( 'branchMenu' )?.addEventListener( 'click', ( e ) => {
     const opt = e.target.closest( '[data-branch]' );
     if ( opt ) switchBranch( opt.dataset.branch );

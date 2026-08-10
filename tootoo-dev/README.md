@@ -55,6 +55,15 @@ mock data, no GitHub needed) **and** a source fragment the assembler extracts.
 
 ## Status
 
+- 2026-08-09 — **Review pass: five small fixes.** (1) Branch menu keyboard support:
+  Escape closes and refocuses the chip, ArrowUp/Down (wrapping) + Home/End move through
+  options, the current branch is focused on open, and picking a branch returns focus to
+  the chip. (2) The first file open of a page load (auto-README/last-file) uses
+  `history.replaceState`, so Back no longer lands on a dead empty-hash entry. (3) A
+  failed file load clears `state.currentFilePath`, so re-navigating to the same hash
+  retries instead of being swallowed by the hashchange guard. (4) `.htm`/`.html` share
+  one Rendered/Raw view preference. (5) `selectFile` highlights the active row via the
+  sidebar's `cachedTreeItems` instead of re-querying every `.tree-item`.
 - 2026-06-23 — **PDF viewer fills the pane.** PDFs now use the full height between the
   file-header and the in-pane footer (a `:has()`-driven flex fill on the PDF iframe)
   instead of a fixed 70vh; the HTML preview keeps 70vh, and it degrades to 70vh where
