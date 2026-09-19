@@ -40,7 +40,7 @@ const buildFileHeader = ( path, ext ) => {
 
   const githubUrl = `https://github.com/${ encodeURIComponent( state.owner ) }/${ encodeURIComponent( state.repo ) }/blob/${ encodeURIComponent( state.branch ) }/${ encodePath( path ) }`;
 
-  const hasToggle = MARKDOWN_EXTS.includes( ext ) || [ 'html', 'htm', 'svg' ].includes( ext );
+  const hasToggle = [ 'md', 'html', 'htm', 'svg' ].includes( ext );
   const hasCopy = !NO_COPY_EXTS.includes( ext ) || ext === 'svg';
   const preferredView = hasToggle ? getPreferredView( ext ) : 'rendered';
 
@@ -113,10 +113,8 @@ const renderMarkdown = ( text, filePath, signal, anchor = '' ) => {
     if ( !href ) return;
     if ( href.startsWith( '#' ) ) {
       const anchor = safeDecode( href.slice( 1 ) );
-      a.href = '#' + encodeHash( filePath ) + ( anchor ? '#' + encodeHash( anchor ) : '' );
       a.classList.add( 'internal-link' );
       a.addEventListener( 'click', ( e ) => {
-        if ( e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey ) return;
         e.preventDefault();
         scrollToAnchor( anchor );
         updateHash( state.currentFilePath, anchor );
@@ -130,14 +128,10 @@ const renderMarkdown = ( text, filePath, signal, anchor = '' ) => {
     const frag = href.indexOf( '#' );
     const clean = frag >= 0 ? href.slice( 0, frag ) : href;
     if ( !clean ) return;
-    const repoPath = clean.startsWith( '?' ) ? filePath : resolveRepoPath( clean, currentDir );
+    const repoPath = resolveRepoPath( clean, currentDir );
     const anchor = frag >= 0 ? safeDecode( href.slice( frag + 1 ) ) : '';
-    a.href = '#' + encodeHash( repoPath ) + ( anchor ? '#' + encodeHash( anchor ) : '' );
-    a.classList.add( 'internal-link' );
-    a.addEventListener( 'click', ( e ) => {
-      if ( e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey ) return;
-      e.preventDefault(); selectFile( repoPath, anchor );
-    } );
+    a.removeAttribute( 'href' ); a.classList.add( 'internal-link' );
+    a.addEventListener( 'click', ( e ) => { e.preventDefault(); selectFile( repoPath, anchor ); } );
   } );
 
   // Images: resolve repo-relative src against the current file's directory. The URL
@@ -225,10 +219,9 @@ const ensureXLSX = () => {
   return xlsxLoader;
 };
 
-const renderSpreadsheet = async ( data, signal ) => {
+const renderSpreadsheet = async ( data ) => {
   try {
     await ensureXLSX();
-    if ( signal?.aborted ) return;
     const workbook = XLSX.read( data, { type: 'array' } );
     let html = '';
     for ( const sheetName of workbook.SheetNames ) {
@@ -236,7 +229,6 @@ const renderSpreadsheet = async ( data, signal ) => {
     }
     document.getElementById( 'contentBody' ).innerHTML = DOMPurify.sanitize( html );
   } catch ( err ) {
-    if ( signal?.aborted ) return;
     document.getElementById( 'contentBody' ).innerHTML =
       `<p style="color: red;">Failed to parse spreadsheet: ${ escapeHTML( err.message ) }</p>`;
   }
@@ -308,43 +300,31 @@ const selectFile = async ( path, anchor = '' ) => {
   try {
     if ( IMAGE_EXTS.includes( ext ) && ext !== 'svg' ) {
       lastRawText = '';
-      const url = await resolveMediaUrl( path, signal );
-      if ( signal.aborted ) return;
-      renderImage( url, path.split( '/' ).pop() );
+      renderImage( await resolveMediaUrl( path, signal ), path.split( '/' ).pop() );
     } else if ( AUDIO_EXTS.includes( ext ) ) {
       lastRawText = '';
-      const url = await fetchFileBlob( path, MIME[ ext ], signal );
-      if ( signal.aborted ) { URL.revokeObjectURL( url ); return; }
-      renderAudio( url );
+      renderAudio( await fetchFileBlob( path, MIME[ ext ], signal ) );
     } else if ( VIDEO_EXTS.includes( ext ) ) {
       lastRawText = '';
-      const url = await fetchFileBlob( path, MIME[ ext ], signal );
-      if ( signal.aborted ) { URL.revokeObjectURL( url ); return; }
-      renderVideo( url );
+      renderVideo( await fetchFileBlob( path, MIME[ ext ], signal ) );
     } else if ( ext === 'pdf' ) {
       lastRawText = '';
-      const url = await fetchFileBlob( path, 'application/pdf', signal );
-      if ( signal.aborted ) { URL.revokeObjectURL( url ); return; }
-      renderPdf( url );
+      renderPdf( await fetchFileBlob( path, 'application/pdf', signal ) );
     } else if ( SHEET_EXTS.includes( ext ) ) {
       lastRawText = '';
-      const data = await fetchFileArrayBuffer( path, signal );
-      if ( signal.aborted ) return;
-      await renderSpreadsheet( data, signal );
+      await renderSpreadsheet( await fetchFileArrayBuffer( path, signal ) );
     } else {
       const text = await fetchFileText( path, signal );
-      if ( signal.aborted ) return;
       lastRawText = text;
-      if ( MARKDOWN_EXTS.includes( ext ) ) renderMarkdown( text, path, signal, anchor );
+      if ( ext === 'md' ) renderMarkdown( text, path, signal, anchor );
       else if ( ext === 'svg' ) renderSvg( text, path.split( '/' ).pop() );
       else if ( ext === 'html' || ext === 'htm' ) renderHtml( text, ext );
       else renderCode( text, ext );
     }
-    if ( signal.aborted ) return;
     updateHash( path, anchor );
     saveCurrentFile( path );   // remember last-opened file for this repo (sessionStorage)
   } catch ( err ) {
-    if ( signal.aborted || err.name === 'AbortError' ) return;   // superseded by a newer view
+    if ( err.name === 'AbortError' ) return;   // superseded by a newer selection
     lastRawText = '';
     // Un-claim the path: leaving a failed load as "current" would make the
     // hashchange guard in main.js swallow a retry of the same permalink.
@@ -445,7 +425,7 @@ const runSelfTest = async () => {
     const ext = extOf( path );
     if ( ( item.size || 0 ) > LARGE_SKIP ) return { path, status: 'skip', detail: `${ formatFileSize( item.size ) } — too large` };
     try {
-      if ( MARKDOWN_EXTS.includes( ext ) ) { DOMPurify.sanitize( marked.parse( await fetchFileText( path, signal ) ) ); return { path, status: 'pass', detail: 'markdown parsed' }; }
+      if ( ext === 'md' ) { DOMPurify.sanitize( marked.parse( await fetchFileText( path, signal ) ) ); return { path, status: 'pass', detail: 'markdown parsed' }; }
       if ( ext === 'svg' ) {
         const url = createBlobUrl( new Blob( [ await fetchFileText( path, signal ) ], { type: 'image/svg+xml' } ) );
         try { await decodeImage( url ); } finally { revokeIfBlob( url ); }

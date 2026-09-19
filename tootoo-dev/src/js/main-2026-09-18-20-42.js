@@ -53,19 +53,12 @@ const initApp = async () => {
 
   // Back/forward + address-bar hash edits re-open the file (and/or scroll to the
   // in-file anchor after the first raw '#').
-  const routeLocation = () => {
+  window.addEventListener( 'hashchange', () => {
     const { path, anchor } = parseHash();
-    const branch = new URLSearchParams( location.search ).get( 'branch' );
-    if ( branch && branch !== state.branch ) { switchBranch( branch, path, anchor ); return; }
     if ( !path ) return;
     if ( path === state.currentFilePath ) { if ( anchor ) scrollToAnchor( anchor ); return; }
     selectFile( path, anchor );
-  };
-  window.addEventListener( 'hashchange', routeLocation );
-  window.addEventListener( 'popstate', routeLocation );   // branch changes also change the query
-
-  // Keep a panel opened during startup visible when the repository tree finishes.
-  if ( activePanel ) return;
+  } );
 
   // Distinguish a RELOAD (keep your place) from a browser SESSION-RESTORE (go home).
   // Both bring back the URL hash and sessionStorage, so we time it instead: on pagehide

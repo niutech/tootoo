@@ -11,7 +11,7 @@ const README_RE = /^readme/i;
 
 /* ── build nested tree from the flat GitHub list ── */
 const buildNestedTree = ( flatTree ) => {
-  const root = { children: Object.create( null ) };
+  const root = { children: {} };
   const hidFolders = hiddenFolderSet();
   const hidFiles = hiddenFileSet();
   for ( const item of flatTree ) {
@@ -21,7 +21,7 @@ const buildNestedTree = ( flatTree ) => {
     for ( let i = 0; i < parts.length; i++ ) {
       const part = parts[ i ];
       if ( !current.children[ part ] ) {
-        current.children[ part ] = { children: Object.create( null ), type: null, size: null, path: null };
+        current.children[ part ] = { children: {}, type: null, size: null, path: null };
       }
       if ( i === parts.length - 1 ) {
         current.children[ part ].type = item.type;
@@ -348,17 +348,11 @@ const showOversizedRepoPanel = ( count, truncated ) => {
 
 /* ── fetchTree: load the repo tree from GitHub (writes state.tree) ── */
 const fetchTree = async () => {
-  const signal = newAbort( false );   // tree loading can continue while an info panel is open
+  const signal = newAbort();
   const treeList = document.getElementById( 'treeList' );
   treeList.innerHTML = '<p style="padding:0.5rem;">Loading tree…</p>';
   try {
     if ( !state.branch ) state.branch = await getDefaultBranch( signal );
-    // Pin the repository and branch in every permalink, including history entries.
-    const url = new URL( location.href );
-    url.searchParams.set( 'owner', state.owner );
-    url.searchParams.set( 'repo', state.repo );
-    url.searchParams.set( 'branch', state.branch );
-    history.replaceState( null, '', url );
     cacheRepo();   // persist owner/repo/branch now that the branch is resolved
     setHeaderTimestamp();   // refresh the title tooltip with this repo's last-push date
     updateBranchControl();   // show the branch chip in the sidebar header
@@ -490,7 +484,7 @@ const setupKeyboardNav = () => {
         if ( active.classList.contains( 'tree-folder' ) ) {
           const d = active.parentElement;
           if ( !d.open ) { d.open = true; autoOpenFolder( d ); }
-          else { const c = d.querySelector( ':scope > .tree-item, :scope > details > summary' ); if ( c && c !== active ) { c.focus(); selectFileItem( c ); } }
+          else { const c = d.querySelector( '.tree-folder, .tree-item' ); if ( c && c !== active ) { c.focus(); selectFileItem( c ); } }
         }
         break;
       }
@@ -577,7 +571,7 @@ const branchMenuKeydown = ( e ) => {
   else if ( e.key === 'End' ) next = options[ options.length - 1 ];
   if ( next ) { e.preventDefault(); next.focus(); }
 };
-const switchBranch = async ( branch, path = '', anchor = '' ) => {
+const switchBranch = async ( branch ) => {
   closeBranchMenu( true );   // the picked option is about to be destroyed — focus the chip
   if ( !branch || branch === state.branch ) return;
   // Leaving this branch's view: clear any active filter first. renderTree rebuilds the rows
@@ -587,22 +581,12 @@ const switchBranch = async ( branch, path = '', anchor = '' ) => {
   if ( filter && filter.value ) { filter.value = ''; runFilter(); }
   state.branch = branch;
   state.tree = null;
-  state.currentFilePath = '';
-  activePanel = null;
-  updateInfoButtonState();
-  setContentHeader( makeSimpleHeader( 'Content' ) );
-  document.getElementById( 'contentBody' ).innerHTML = '<p>Select a file from the list to preview it here.</p>';
-  // A branch switch starts a new file history; never keep an old branch's file hash.
-  history.replaceState( null, '', location.pathname + location.search );
-  hashNavigated = false;
   branchList = null;          // re-list for the new branch context if reopened
   cacheRepo();
   clearFileCache();
   updateBranchControl();
   await fetchTree();
-  if ( state.branch !== branch || activePanel ) return;
-  if ( path ) selectFile( path, anchor );
-  else autoSelectReadme();
+  autoSelectReadme();
 };
 
 /* ── init: render + wire ── */

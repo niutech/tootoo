@@ -305,8 +305,6 @@ const toggleInfoPanel = async ( panel ) => {
   if ( !document.getElementById( 'contentBody' ) ) return;
   if ( activePanel === panel ) { closeInfoPanel(); return; }
   if ( !activePanel ) panelReturnPath = state.currentFilePath || '';
-  cancelContentLoad();
-  state.currentFilePath = '';
   activePanel = panel;
   updateInfoButtonState();
   if ( panel === 'about' ) await renderAboutPanel();

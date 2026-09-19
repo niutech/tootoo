@@ -163,8 +163,8 @@ const applyHeadingFont = () => {
 
 /* ── per-extension Rendered/Raw preference (reference §7) ──
    '.htm' and '.html' are the same format with the same renderer, so they share
-   one stored preference (keyed as 'html'); Markdown extensions share 'md'. ── */
-const viewPrefKey = ( ext ) => `${ CONFIG.storagePrefix || 'tootoo' }:viewPref:${ MARKDOWN_EXTS.includes( ext ) ? 'md' : ext === 'htm' ? 'html' : ext }`;
+   one stored preference (keyed as 'html'). ── */
+const viewPrefKey = ( ext ) => `${ CONFIG.storagePrefix || 'tootoo' }:viewPref:${ ext === 'htm' ? 'html' : ext }`;
 const getPreferredView = ( ext ) => {
   try { return localStorage.getItem( viewPrefKey( ext ) ) || 'rendered'; } catch ( _ ) { return 'rendered'; }
 };
@@ -182,16 +182,12 @@ const setPreferredView = ( ext, view ) => {
    =================================================================== */
 
 /* ── request abort (cancel in-flight fetch when navigating away) ── */
-const requests = { current: null, content: null };
-const newAbort = ( forContent = true ) => {
-  requests.current?.abort();
-  const controller = new AbortController();
-  requests.current = controller;
-  if ( forContent ) requests.content = controller;
-  return controller.signal;
+let currentAbortController = null;
+const newAbort = () => {
+  if ( currentAbortController ) currentAbortController.abort();
+  currentAbortController = new AbortController();
+  return currentAbortController.signal;
 };
-// Opening an info panel cancels content without interrupting the repository tree.
-const cancelContentLoad = () => requests.content?.abort();
 
 /* ── in-memory file-text cache (per session; capped, FIFO eviction) ── */
 const fileTextCache = new Map();
@@ -255,12 +251,12 @@ const ghApi = async ( url, signal ) => {
 
 /* ── file URLs + fetchers ── */
 const rawUrl = ( path ) =>
-  `https://raw.githubusercontent.com/${ encodeURIComponent( state.owner ) }/${ encodeURIComponent( state.repo ) }/${ encodeURIComponent( state.branch ) }/${ encodePath( path ) }`;
+  `https://raw.githubusercontent.com/${ state.owner }/${ state.repo }/${ state.branch }/${ encodePath( path ) }`;
 
 // Contents API URL (used WITH a token): returns file content the token is authorized
 // for — including PRIVATE repos, which raw.githubusercontent.com refuses to serve.
 const contentsApiUrl = ( path ) =>
-  `https://api.github.com/repos/${ encodeURIComponent( state.owner ) }/${ encodeURIComponent( state.repo ) }/contents/${ encodePath( path ) }?ref=${ encodeURIComponent( state.branch ) }`;
+  `https://api.github.com/repos/${ state.owner }/${ state.repo }/contents/${ encodePath( path ) }?ref=${ state.branch }`;
 
 /* Fetch a file's Response — local-first (file:// drop-in), then GitHub. With a token
    we go through the Contents API (Accept: raw) so PRIVATE repos work — raw.github
@@ -323,7 +319,6 @@ const fetchFileArrayBuffer = async ( path, signal ) =>
    from disk and seeds owner/repo from .git/config. Needs a GitHub remote + a
    browser that allows file:// fetches (Chrome --allow-file-access-from-files). ── */
 let localMode = false;
-const localRepo = { owner: '', repo: '', branch: '' };
 let fileAccessBlocked = false;   // file:// reads denied (Chrome missing --allow-file-access-from-files)
 const detectLocalMode = async () => {
   if ( location.protocol !== 'file:' ) return;
@@ -336,18 +331,7 @@ const detectLocalMode = async () => {
     const m = text.match( /github\.com[:/]+([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?\s*$/im );
     // Local .git/config wins over the static CONFIG default (canonical precedence:
     // .git/config beats CONFIG_DEFAULTS). Query params still override in detectRepo.
-    if ( m ) {
-      localRepo.owner = m[ 1 ]; localRepo.repo = m[ 2 ];
-      // Use the checked-out branch (or detached commit), not the remote default.
-      // If HEAD is unreadable, use remote files rather than guess what's on disk.
-      try {
-        const headResponse = await fetch( '.git/HEAD' );
-        const head = headResponse.ok ? ( await headResponse.text() ).trim() : '';
-        localRepo.branch = head.startsWith( 'ref: refs/heads/' )
-          ? head.slice( 'ref: refs/heads/'.length ) : /^[a-f0-9]{40,64}$/i.test( head ) ? head : '';
-      } catch ( _ ) { localRepo.branch = ''; }
-      CONFIG.owner = localRepo.owner; CONFIG.repo = localRepo.repo; CONFIG.branch = localRepo.branch;
-    }
+    if ( m ) { CONFIG.owner = m[ 1 ]; CONFIG.repo = m[ 2 ]; CONFIG.branch = ''; }
     else { CONFIG.owner = ''; CONFIG.repo = ''; }   // in a git repo but no GitHub remote → ask, don't silently load tootoo
     localMode = true;
   } catch ( _ ) {
@@ -360,10 +344,7 @@ const detectLocalMode = async () => {
     catch ( _e ) { fileAccessBlocked = true; }
   }
 };
-const isLocalRepo = () => localMode && state.owner.toLowerCase() === localRepo.owner.toLowerCase()
-  && state.repo.toLowerCase() === localRepo.repo.toLowerCase();
-const localUrlFor = ( path ) => isLocalRepo() && localRepo.branch && state.branch === localRepo.branch
-  ? './' + encodePath( path ) : null;
+const localUrlFor = ( path ) => ( localMode ? './' + encodePath( path ) : null );
 
 /* ── per-pathname storage + repo cache (reference §4) ── */
 const storageKey = ( suffix ) => `${ CONFIG.storagePrefix }:${ location.pathname }:${ suffix }`;
@@ -380,9 +361,6 @@ const detectRepo = async () => {
   const p = new URLSearchParams( location.search );
   if ( p.get( 'owner' ) ) CONFIG.owner = p.get( 'owner' );
   if ( p.get( 'repo' ) ) CONFIG.repo = p.get( 'repo' );
-  // A different requested repository must not inherit the checkout's branch.
-  if ( localMode && ( CONFIG.owner.toLowerCase() !== localRepo.owner.toLowerCase()
-    || CONFIG.repo.toLowerCase() !== localRepo.repo.toLowerCase() ) ) CONFIG.branch = '';
   if ( p.get( 'branch' ) ) CONFIG.branch = p.get( 'branch' );
   if ( CONFIG.owner && CONFIG.repo ) { applyRepo(); return; }
 
@@ -435,10 +413,9 @@ const promptForRepo = () => new Promise( ( resolve ) => {
    Segments are percent-decoded: marked emits hrefs URL-encoded (spaces → %20), but
    tree paths and fetch helpers work with the real file names. ── */
 const resolveRepoPath = ( href, currentDir ) => {
-  // Remove URL suffixes before decoding: an encoded '?' or '#' can belong to a filename.
-  const path = href.split( /[?#]/, 1 )[ 0 ];
-  const stack = !path.startsWith( '/' ) && currentDir ? currentDir.split( '/' ) : [];
-  for ( const part of path.split( '/' ) ) {
+  if ( href.startsWith( '/' ) ) return safeDecode( href.replace( /^\/+/, '' ) );   // root-relative
+  const stack = currentDir ? currentDir.split( '/' ) : [];
+  for ( const part of href.split( '/' ) ) {
     if ( part === '' || part === '.' ) continue;
     if ( part === '..' ) stack.pop();
     else stack.push( safeDecode( part ) );
