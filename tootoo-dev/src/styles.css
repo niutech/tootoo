@@ -613,6 +613,13 @@ details {
   display: none !important;
 }
 
+/* The hidden ATTRIBUTE relies on the browser's own [hidden] { display: none } rule, which
+   any author display: on the same element silently overrides (e.g. .branch-switcher's
+   inline-flex). Restate it with !important so `el.hidden = true` always wins. */
+[hidden] {
+  display: none !important;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

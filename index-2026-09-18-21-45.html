@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="revised" content="2026-09-18 21:45">
+  <meta name="revised" content="2026-09-18 20:54">
   <title>TooToo</title>
   <!-- A real favicon.ico is assumed to sit next to index.html in every deployment
        (assemble.ps1 generates a TT-mark placeholder when the dev folder lacks one). -->
@@ -636,13 +636,6 @@ details {
 
 /* ── Helpers ── */
 .is-hidden {
-  display: none !important;
-}
-
-/* The hidden ATTRIBUTE relies on the browser's own [hidden] { display: none } rule, which
-   any author display: on the same element silently overrides (e.g. .branch-switcher's
-   inline-flex). Restate it with !important so `el.hidden = true` always wins. */
-[hidden] {
   display: none !important;
 }
 
@@ -1711,19 +1704,15 @@ const setHljsTheme = ( isDark ) => {
     ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css'
     : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
 };
-    /* TooToo — config.js: per-build config for the ASSEMBLED dev build.
-   Object.assigns over the core defaults, baking a default repo + dev identity so the
-   standalone index.html is testable on its own. The -Prod build swaps in the empty
-   config.prod.js instead, keeping production neutral. (URL ?owner=…&repo=… still wins.) */
-Object.assign( CONFIG, {
-  appName: 'TooToo Dev',
-  subtitle: 'a GitHub repository browser',
-  owner: 'Pushme-Pullyou',                       // default repo to browse
-  repo: 'tootoo',
-  headingFont: '"Rammetto One", sans-serif',     // heading + title face
-  headingFontUrl: 'https://fonts.googleapis.com/css2?family=Rammetto+One&display=swap',
-  // hiddenFiles: [ '/index.html' ],             // hide a name from the tree; '/name' anchors to the repo root
-} );
+    /* TooToo — production config (used by `assemble.ps1 -Prod`).
+
+   Intentionally empty. Canonical index.html stays byte-identical across every fork;
+   each repo customizes via its own tootoo.config.js (window.TOOTOO_CONFIG), merged
+   over the CONFIG defaults at init.
+
+   The dev build uses config.js instead, which bakes a default repo + dev identity so
+   the standalone assembled file is testable without a tootoo.config.js sibling or a
+   .git/config to detect. */
     /* TooToo — header.js  (the "where are we?" component).
    Ported from reference §8 (updateHeaderFromConfig) + appearance controls (§11).
    Reads: CONFIG + meta[revised]. Writes: state.owner/repo/branch (repo/branch

@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="revised" content="2026-09-18 20:54">
+  <meta name="revised" content="2026-09-18 21:45">
   <title>TooToo</title>
   <!-- A real favicon.ico is assumed to sit next to index.html in every deployment
        (assemble.ps1 generates a TT-mark placeholder when the dev folder lacks one). -->
@@ -636,6 +636,13 @@ details {
 
 /* ── Helpers ── */
 .is-hidden {
+  display: none !important;
+}
+
+/* The hidden ATTRIBUTE relies on the browser's own [hidden] { display: none } rule, which
+   any author display: on the same element silently overrides (e.g. .branch-switcher's
+   inline-flex). Restate it with !important so `el.hidden = true` always wins. */
+[hidden] {
   display: none !important;
 }
 
