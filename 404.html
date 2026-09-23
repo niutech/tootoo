@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <title>Redirecting...</title>
     <script>
-        // Redirection: https://pushme-pullyou.github.io/tootoo/{owner}/{repo}/tree/{branch} -> https://pushme-pullyou.github.io/tootoo/?owner={owner}&repo={repo}&branch={branch}
+        // Redirection: https://pushme-pullyou.github.io/tootoo/{owner}/{repo}[/tree/{branch}] -> https://pushme-pullyou.github.io/tootoo/?owner={owner}&repo={repo}[&branch={branch}]
         const match = location.pathname.match(/\/tootoo\/([^\/]+)\/([^\/]+)(?:\/tree\/(.+))?/);
         if (match) {
-            location.replace(location.origin + '/tootoo/?owner=' + encodeURIComponent(match[1]) + '&repo=' + encodeURIComponent(match[2]) + '&branch=' + encodeURIComponent(match[3]));
+            location.replace(location.origin + '/tootoo/?owner=' + encodeURIComponent(match[1]) + '&repo=' + encodeURIComponent(match[2]) + (match[3] ? '&branch=' + encodeURIComponent(match[3]) : ''));
         } else {
 			document.open();
             document.write('404 Not Found');
